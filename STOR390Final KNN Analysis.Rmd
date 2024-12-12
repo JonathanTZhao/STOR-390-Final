@@ -1,0 +1,188 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+```
+
+
+```{r}
+library(dplyr)
+
+# Step 1: Load the dataset
+crime_data <- read.csv("Crimes_-_2001_to_Present_20241205.csv")
+summary(crime_data)
+head(crime_data$Date)
+nrow(crime_data)
+```
+
+
+```{r}
+limited_crime_data = crime_data
+
+```
+
+
+```{r}
+head(limited_crime_data$Date)
+
+limited_crime_data$Date <- as.Date(limited_crime_data$Date, format = "%m/%d/%Y")
+
+
+filtered_data <- limited_crime_data %>%
+  filter(between(Date, as.Date("2001-01-01"),
+         as.Date("2015-04-01")))
+
+summary(filtered_data)
+nrow(filtered_data)
+head(filtered_data)
+```
+```{r}
+filtered_data <-na.omit(filtered_data)
+filtered_data$Date <- as.Date(filtered_data$Date, format = "%Y")
+filtered_data$Date <- format(filtered_data$Date, "%Y")
+filtered_data <- distinct(filtered_data)
+head(filtered_data)
+
+sampled_data <- filtered_data %>%  group_by(Date) %>% slice_sample(n = 1000, replace = FALSE)
+nrow(sampled_data)
+head(sampled_data)
+```
+
+
+```{r}
+
+
+
+selected_features <- c("Location.Description", "Date", "District", "Ward",
+                       "Longitude", "Latitude", "Primary.Type", "Description")
+data_cleaned <- sampled_data %>% select(all_of(selected_features))
+
+summary(data_cleaned)
+nrow(data_cleaned)
+
+```
+
+
+
+```{r}
+
+#Normalization
+normal <-function(x) {
+  (x -min(x))/(max(x)-min(x))  
+}
+data_cleaned <-as.data.frame(data_cleaned)
+
+
+data_cleaned[3:6] <- as.data.frame(lapply(data_cleaned[,c(3,4,5,6)], normal))
+norm_features <-data_cleaned
+
+
+
+
+# Divide data into training and testing split
+set.seed(123)
+ran <- sample(1:nrow(data_cleaned), 0.99 * nrow(data_cleaned)) 
+
+#get training stuff
+train_features <- norm_features[ran,]
+
+#get testing stuff
+test_features <- norm_features[-ran, ]
+
+
+target_category <- data_cleaned[ran,6]
+test_category <- data_cleaned[-ran,6]
+
+summary(train_features)
+nrow(train_features)
+summary(test_features)
+nrow(test_features)
+```
+
+```{r}
+library(class)
+#Euclidean Distance Function
+euclid <- function(a, b) {
+  sqrt(sum((a - b)^2))
+}
+
+#Nearest Neighbors algorithm
+nearest_neighbors = function(x, obs, k, dist_func){
+  dist = apply(x, 1, dist_func, obs) #apply along the rows 
+  distances = sort(dist)[1:k]
+  neighbor_list = which(dist %in% sort(dist)[1:k])
+  return(list(neighbor_list, distances))
+}
+
+#take last function and create a predicted class based on nearest neighbors
+knn_classifier = function(x,y){
+
+  groups = table(x[,y])
+  pred = groups[groups == max(groups)]
+  return(pred)
+}
+```
+
+```{r}
+classification_results <- data.frame(Prediction = character())
+```
+
+```{r}
+x = train_features[1:(nrow(train_features)),]
+
+ 
+for (i in 1:nrow(test_features)) {
+
+  obs = test_features[i,]
+  nearestNeigbhors = nearest_neighbors(x[,3:6], obs[,3:6],7, euclid)
+  #print(nearestNeigbhors)
+  ind = nearestNeigbhors[[1]]
+  knn_classified = knn_classifier(x[ind,], 'Primary.Type')
+  print(names(knn_classified))
+  classification_results <- rbind(classification_results, Prediction = names(knn_classified))
+  #print(classification_results)
+  #print(obs[,7])
+}
+accuracy <- function(x){
+  sum(diag(x)/(sum(rowSums(x)))) * 100
+}
+```
+
+
+```{r}
+accuracy <- function(x,y){
+  matches <- x == y
+  accuracy <- sum(matches) / length(matches) * 100
+  return(accuracy)
+}
+
+
+print("Accuracy")
+print(accuracy(classification_results,test_features[,7]))
+
+
+
+```
+
+```{r}
+
+#Unused Code, originally planned for further testing, but does not follow the methodology of the research paper.
+cosine_distance <- function(a, b) {
+  distance <- 1 - (sum(a * b) / (sqrt(sum(a^2)) * sqrt(sum(b^2))))
+  return(distance)
+}
+encoded_location <- data_cleaned.matrix(~Location.Description - 1, data = data)
+encoded_type <- data_cleaned.matrix(~Primary.Type - 1, data = data)
+
+
+
+
+```
+
+
